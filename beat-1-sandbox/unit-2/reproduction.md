@@ -18,13 +18,94 @@ BettinaGeorge
 ## Posted upstream
 
 **Claim comment**
+https://github.com/codepath/pathreview-ai301-fa26-s1/issues/54#issuecomment-5893060296
+I'd like to take this one on. Per the issue body, _detect_sections() in ingestion/parsers/resume_parser.py anchors its patterns at line start (^Experience, \nExperience), so indented text comes back with an empty detected_sections. Reading the source, that matches what I see — but I haven't run it yet.
 
-<!-- BETTINA: paste the PERMALINK to your claim comment here (on the comment's
-timestamp, Copy link), then paste the exact text you posted underneath it. -->
+I'll run the reproduction from the issue body plus the xfail-marked tests in tests/unit/test_resume_parser.py against current main, then post a repro report with my environment, the exact steps and the output I see, whether or not it reproduces.
+
+This is my first open-source contribution, so flagging that. I can see @DuBaem has already posted a reproduction. I'll write mine from my own run rather than confirming theirs. I'm also working with AI assistance as part of AI 301 coursework.
 
 **Reproduction comment**
+https://github.com/codepath/pathreview-ai301-fa26-s1/issues/54#issuecomment-5905836222
+I reproduced this on my local clone. With leading whitespace, the parser returns no detected sections. Removing the indentation from the same input detects both Skills and Education.
 
-<!-- BETTINA: same — permalink, then the exact text you posted underneath. -->
+**Environment**
+- macOS 26.5.1
+- Python 3.11.14
+- pypdf 6.19.0
+- Commit: `f89c06fc3ff292df2a04a39ac51319d32a76b779`
+
+**Setup**
+
+From the repository root, I ran:
+
+```bash
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -e ".[dev]"
+```
+
+**Reproduction and control**
+
+I ran this from the repository root. The control uses `dedent()` to remove the leading indentation from the same text.
+
+```bash
+.venv/bin/python - <<'PY'
+from ingestion.parsers.resume_parser import ResumeParser
+from textwrap import dedent
+
+text = (
+    "\n    John Smith\n"
+    "    john@example.com\n"
+    "\n"
+    "    Education:\n"
+    "    - B.S. Computer Science\n"
+    "\n"
+    "    Skills: Python\n"
+)
+
+parser = ResumeParser()
+print("Indented:", parser.parse(text).metadata["detected_sections"])
+print("Without indentation:", parser.parse(dedent(text)).metadata["detected_sections"])
+PY
+```
+
+Actual output:
+
+```text
+Indented: []
+Without indentation: ['Skills', 'Education']
+```
+
+Expected: the indented input should also detect Education and Skills.
+
+**Tests**
+
+I also ran:
+
+```bash
+.venv/bin/python -m pytest tests/unit/test_resume_parser.py -rx -q
+```
+
+Result:
+
+```text
+5 passed, 5 xfailed in 1.08s
+```
+
+The five expected failures were:
+- `test_parse_single_column_resume_text`
+- `test_parse_resume_no_work_experience`
+- `test_parse_markdown_resume`
+- `test_detect_sections`
+- `test_strip_markdown_syntax`
+
+Each was marked with the reason “issue #54: resume section detection fails on leading whitespace.”
+
+**Outcome**
+
+The direct reproduction matches the reported bug. The control detects both sections once the indentation is removed. I haven’t changed the parser code.
+
+I’m working with AI assistance as part of AI 301 coursework.
 
 ## Eval iterations
 
@@ -55,18 +136,7 @@ AI-generated comments may be hidden." The template line reads: "template asks fo
 the ripgrep version, how it was installed, the operating system, a description of
 the bug, steps to reproduce, actual behavior, and expected behavior."
 
-<!-- ⬇ BETTINA: REWRITE THIS PARAGRAPH IN YOUR OWN WORDS. The facts above are
-fixed; this is the reasoning, and it is what the 2 points are for. -->
-
-My check reads both of those lines as requirements and fails the package if any
-of them goes unmet. The policy line here sets no disclosure requirement at all —
-it asks that comments be human-written, which this package satisfies — but the
-template line names seven separate fields, and my check treated every one of
-them as mandatory. So a package that proves the bug properly gets held for a
-missing template field. Comparing it with `pkg-20`, where ghostty's policy says
-outright that "all AI usage in any form must be disclosed" and the comments do
-not disclose, shows the distinction I missed: a stated *policy* requirement is
-a hard gate, and a bug template's list of asks is not.
+The mistake here was treating everything the repo asked for as equally mandatory. Ripgrep’s policy asks for human-written comments, which this package satisfies; it does not require AI disclosure. My check still rejected the package because I treated all seven fields in the bug template as hard requirements, even though the reproduction showed the bug clearly. Comparing this with `pkg-20` helped me see the difference: ghostty explicitly requires disclosure of all AI use, and the comments leave that out. Missing a template field and breaking an explicit policy should not automatically carry the same weight.
 
 **Check rationale**
 
@@ -84,38 +154,13 @@ From the checks table in `rubric.md`, as uploaded to `tools/repro-check/`:
 > requirement goes unmet in the package, most commonly an AI-use disclosure the
 > policy demands and the comments omit. | required |
 
-<!-- ⬇ BETTINA: REWRITE IN YOUR OWN WORDS. -->
-
-This check exists because the eval set contains exactly one `disclosure` package
-and no other check in my rubric can see that family at all. Every other check I
-wrote reads the proof — the environment, the steps, the artifact, the honesty of
-the conclusion — and `pkg-20` passes all of them. It is an excellent
-reproduction. What makes it a reject is entirely about the words next to the
-proof: ghostty's policy requires disclosing AI use and the comments do not. With
-no conventions check, my rubric scores 19/20 and still fails on the category
-floor. That is the same trap as Unit 1's `policy` category, which is why I wrote
-this one in from the start rather than discovering it in a run.
+I included this check because a strong reproduction can still miss an explicit contribution requirement. `pkg-20` passes every other check in my rubric: the environment, steps, evidence, and conclusion all hold up. The problem is that ghostty requires AI-use disclosure, and the comments do not provide it. Without this check, I would get 19/20 overall but still fail the disclosure category floor. That is the disclosure trap: a higher total score does not mean the rubric catches every required category. I recognized the same pattern from Unit 1’s policy category, so I included this check from the start.
 
 **Trade-offs**
 
-<!-- ⬇ BETTINA: REWRITE IN YOUR OWN WORDS. -->
+The trade-off is that my check is too strict about template fields. It rejected `pkg-03` and `pkg-05` even though both had real reproductions with artifacts and controls. Their proof was not the issue; the missing template fields were.
 
-What it gives up is precision: by treating bug-template field asks with the same
-force as stated policy requirements, it holds two packages that a maintainer
-would have been glad to receive. `pkg-03` and `pkg-05` are both real
-reproductions with artifacts and controls, and both were rejected for unmet
-template fields rather than for anything wrong with their proof.
-
-I know the narrower version — fail only on an explicitly stated policy
-requirement, treat template asks as preferred — would fix both, and would leave
-`pkg-20` rejecting, because `pkg-20` fails on the policy line and not the
-template line. I did not make that change. `disclosure` is a single-package
-category, so that one package is the entire category floor; the eval README's
-canary rule exists for exactly this move, and a confirming full run costs about
-$4 to chase a score that earns no points on its own. Holding two good packages
-is the price of reliably catching the one that decides the floor, and at 18/20
-with every category matched I would rather bank a run I trust than spend
-credit improving a number the rubric does not score.
+I could narrow the check so explicit policy requirements are mandatory and template fields are preferred. Based on the package analysis, that should fix both disagreements while still rejecting `pkg-20` for missing the required disclosure. But I did not make or test that change. Since the disclosure category has only one package, changing this check would need the canary validation and a confirming full run, which costs about $4. My existing run already passed at 18/20 and met every category floor, so I chose to keep that verified result. That leaves two false rejections, which is a limitation I can explain, rather than claiming the narrower version works without running it.
 
 ---
 
